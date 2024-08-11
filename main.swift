@@ -296,52 +296,172 @@ struct AdminLoginView: View {
     }
 }
 
-struct BusTableView: View {
-    let schoolName: String
-    
+
+struct SettingsView: View {
+    @State private var name: String = ""
+    @State private var email: String = ""
+    @State private var role: String = ""
+    @State private var school: String = ""
+    @State private var errorMessage: String?
+    @State private var successMessage: String?
+
     var body: some View {
-        ZStack {
-            Color(.systemBrown).opacity(0.2).edgesIgnoringSafeArea(.all)
-            VStack {
-                // Display Selected School Name
-                Text("\(schoolName) Bus Loop")
-                    .font(.largeTitle)
+        VStack {
+            Text("Account Info")
+                .font(.largeTitle)
+                .padding()
+            
+            TextField("Name", text: $name)
+                .padding()
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+            
+            TextField("Email", text: $email)
+                .padding()
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .disabled(true) // Disable editing for email
+            
+            TextField("Role", text: $role)
+                .padding()
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .disabled(true) // Disable editing for role
+            
+            TextField("School", text: $school)
+                .padding()
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .disabled(true) // Disable editing for school
+            
+            if let errorMessage = errorMessage {
+                Text(errorMessage)
+                    .foregroundColor(.red)
+                    .padding(.top, 10)
+            }
+            
+            if let successMessage = successMessage {
+                Text(successMessage)
+                    .foregroundColor(.green)
+                    .padding(.top, 10)
+            }
+            
+            Button(action: updateAccountSettings) {
+                Text("Update Settings")
                     .padding()
-                
-                HStack {
-                    // First Column
-                    VStack(spacing: 0) {
-                        ForEach(1...12, id: \.self) { busNumber in
-                            HStack {
-                                Text("Bus # \(busNumber)")
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.vertical, 4)
-                            }
-                            .background(Color.clear)
-                            .border(Color.gray, width: 0.5)
-                        }
-                    }
-                    .frame(maxWidth: 150)
-                    
-                    // Second Column
-                    VStack(spacing: 0) {
-                        ForEach(13...24, id: \.self) { busNumber in
-                            HStack {
-                                Text("Bus # \(busNumber)")
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.vertical, 4)
-                            }
-                            .background(Color.clear)
-                            .border(Color.gray, width: 0.5)
-                        }
-                    }
-                    .frame(maxWidth: 150)
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+            }
+            .padding(.top, 20)
+        }
+        .padding()
+        .onAppear(perform: loadUserData)
+    }
+    
+    private func loadUserData() {
+        let user = Auth.auth().currentUser
+        if let user = user {
+            let db = Firestore.firestore()
+            db.collection("users").document(user.uid).getDocument { document, error in
+                if let error = error {
+                    errorMessage = "Failed to fetch user details: \(error.localizedDescription)"
+                    return
                 }
-                .padding(.top, 50)
+                if let data = document?.data() {
+                    name = data["name"] as? String ?? ""
+                    email = data["email"] as? String ?? ""
+                    role = data["role"] as? String ?? "N/A"
+                    school = data["school"] as? String ?? "N/A"
+                }
+            }
+        }
+    }
+    
+    private func updateAccountSettings() {
+        let user = Auth.auth().currentUser
+        guard let user = user else { return }
+
+        // Update Firestore with the new name
+        let db = Firestore.firestore()
+        db.collection("users").document(user.uid).updateData([
+            "name": name
+        ]) { error in
+            if let error = error {
+                errorMessage = "Failed to update settings: \(error.localizedDescription)"
+            } else {
+                successMessage = "Settings updated successfully!"
             }
         }
     }
 }
+
+
+
+
+struct BusTableView: View {
+    let schoolName: String
+    @State private var navigateToSettings = false
+
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color(.systemBrown).opacity(0.2).edgesIgnoringSafeArea(.all)
+                VStack {
+                    // Display Selected School Name
+                    Text("\(schoolName) Bus Loop")
+                        .font(.largeTitle)
+                        .padding()
+                    
+                    HStack {
+                        // First Column
+                        VStack(spacing: 0) {
+                            ForEach(1...12, id: \.self) { busNumber in
+                                HStack {
+                                    Text("Bus # \(busNumber)")
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.vertical, 4)
+                                }
+                                .background(Color.clear)
+                                .border(Color.gray, width: 0.5)
+                            }
+                        }
+                        .frame(maxWidth: 150)
+                        
+                        // Second Column
+                        VStack(spacing: 0) {
+                            ForEach(13...24, id: \.self) { busNumber in
+                                HStack {
+                                    Text("Bus # \(busNumber)")
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.vertical, 4)
+                                }
+                                .background(Color.clear)
+                                .border(Color.gray, width: 0.5)
+                            }
+                        }
+                        .frame(maxWidth: 150)
+                    }
+                    .padding(.top, 50)
+                    
+                    Spacer()
+                }
+                .padding(.top, 20) // Adjusted padding for the top section
+                .navigationTitle("") // Clear the navigation title
+                .navigationBarItems(trailing:
+                    Button(action: {
+                        navigateToSettings = true
+                    }) {
+                        Image(systemName: "person.fill") // Person icon
+                            .font(.title)
+                    }
+                    .background(
+                        NavigationLink(destination: SettingsView(), isActive: $navigateToSettings) {
+                            EmptyView()
+                        }
+                    )
+                )
+            }
+        }
+    }
+}
+
 
 
 struct SignUpView: View {
@@ -435,35 +555,44 @@ struct SignUpView: View {
                     return
                 }
                 
-                // User created successfully, save additional user data in Firestore
+                // User created successfully, send verification email
                 guard let user = result?.user else {
                     errorMessage = "Failed to get user information."
                     isSignUpSuccessful = false
                     return
                 }
                 
-                let userData: [String: Any] = [
-                    "name": name,
-                    "email": email,
-                    "role": role,
-                    "school": selectedSchool
-                ]
-                
-                db.collection("users").document(user.uid).setData(userData) { error in
+                user.sendEmailVerification { error in
                     if let error = error {
-                        errorMessage = "Failed to save user data: \(error.localizedDescription)"
+                        errorMessage = "Failed to send verification email: \(error.localizedDescription)"
                         isSignUpSuccessful = false
-                    } else {
-                        isSignUpSuccessful = true
-                        errorMessage = nil
+                        return
+                    }
+                    
+                    // Save additional user data in Firestore
+                    let userData: [String: Any] = [
+                        "name": name,
+                        "email": email,
+                        "role": role,
+                        "school": selectedSchool
+                    ]
+                    
+                    self.db.collection("users").document(user.uid).setData(userData) { error in
+                        if let error = error {
+                            errorMessage = "Failed to save user data: \(error.localizedDescription)"
+                            isSignUpSuccessful = false
+                        } else {
+                            isSignUpSuccessful = true
+                            errorMessage = nil
 
-                        // Clear fields after successful sign-up
-                        name = ""
-                        email = ""
-                        password = ""
-                        confirmPassword = ""
-                        adminPassword = ""
-                        selectedSchool = "" // Clear selected school
+                            // Clear fields after successful sign-up
+                            name = ""
+                            email = ""
+                            password = ""
+                            confirmPassword = ""
+                            adminPassword = ""
+                            selectedSchool = "" // Clear selected school
+                        }
                     }
                 }
             }
@@ -559,7 +688,7 @@ struct SignUpView: View {
                 .padding(.top, 20)
                 
                 if isSignUpSuccessful {
-                    Text("Sign Up Successful!")
+                    Text("Please check your email for verification link to finish sign up!")
                         .foregroundColor(.green)
                         .padding(.top, 10)
                 }
