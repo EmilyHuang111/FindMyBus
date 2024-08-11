@@ -106,14 +106,19 @@ struct ContentView: View {
                             .font(.subheadline)
                             .foregroundColor(.blue)
                             .padding(.bottom, 30)
+                            
                     }
                     
                     Spacer()
                     
                     // Navigation Link to Bus Table View
-                    NavigationLink(destination: BusTableView(schoolName: selectedSchool), isActive: $navigateToBusTableView) {
+                    NavigationLink(destination: BusTableView(schoolName: selectedSchool)
+                                    .navigationBarBackButtonHidden(true)
+                                    .navigationBarHidden(true),
+                                   isActive: $navigateToBusTableView) {
                         EmptyView()
                     }
+
                     
                 }
                 .alert(isPresented: $showConfirmationAlert) {
@@ -297,6 +302,7 @@ struct AdminLoginView: View {
 }
 
 
+
 struct SettingsView: View {
     @State private var name: String = ""
     @State private var email: String = ""
@@ -306,53 +312,84 @@ struct SettingsView: View {
     @State private var successMessage: String?
 
     var body: some View {
-        VStack {
-            Text("Account Info")
-                .font(.largeTitle)
-                .padding()
+        ZStack {
+            // Full background color
+            Color(red: 0.9, green: 0.95, blue: 1.0) // Replace with your desired tan color if needed
             
-            TextField("Name", text: $name)
-                .padding()
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-            
-            TextField("Email", text: $email)
-                .padding()
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-                .disabled(true) // Disable editing for email
-            
-            TextField("Role", text: $role)
-                .padding()
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-                .disabled(true) // Disable editing for role
-            
-            TextField("School", text: $school)
-                .padding()
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-                .disabled(true) // Disable editing for school
-            
-            if let errorMessage = errorMessage {
-                Text(errorMessage)
-                    .foregroundColor(.red)
-                    .padding(.top, 10)
+            VStack(alignment: .leading, spacing: 20) {
+                        Text("Account Info")
+                            .font(.largeTitle)
+                            .padding(.bottom, 20)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                        
+                        VStack(alignment: .leading, spacing: 15) {
+                            HStack(spacing: -15) { // Adjust the spacing here
+                                Text("Name:")
+                                    .font(.headline)
+                                    .frame(width: 70, alignment: .leading) // Adjust width for alignment
+                                TextField("Name", text: $name)
+                                    .padding()
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                            }
+                            
+                            HStack(spacing: -15) { // Adjust the spacing here
+                                Text("Email:")
+                                    .font(.headline)
+                                    .frame(width: 70, alignment: .leading) // Adjust width for alignment
+                                TextField("Email", text: $email)
+                                    .padding()
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .disabled(true) // Disable editing for email
+                            }
+                            
+                            HStack(spacing: -15) { // Adjust the spacing here
+                                Text("Role:")
+                                    .font(.headline)
+                                    .frame(width: 70, alignment: .leading) // Adjust width for alignment
+                                TextField("Role", text: $role)
+                                    .padding()
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .disabled(true) // Disable editing for role
+                            }
+                            
+                            HStack(spacing: -15) { // Adjust the spacing here
+                                Text("School:")
+                                    .font(.headline)
+                                    .frame(width: 70, alignment: .leading) // Adjust width for alignment
+                                TextField("School", text: $school)
+                                    .padding()
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .disabled(true) // Disable editing for school
+                            }
+                        }
+                        
+                        if let errorMessage = errorMessage {
+                            Text(errorMessage)
+                                .foregroundColor(.red)
+                                .padding(.top, 10)
+                        }
+                        
+                        if let successMessage = successMessage {
+                            Text(successMessage)
+                                .foregroundColor(.green)
+                                .padding(.top, 10)
+                        }
+                
+                Button(action: updateAccountSettings) {
+                    Text("Update Settings")
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                }
+                .padding(.top, 20)
+                .frame(maxWidth: .infinity) // Make the button take up the full width of its container
+                .frame(alignment: .center)
             }
-            
-            if let successMessage = successMessage {
-                Text(successMessage)
-                    .foregroundColor(.green)
-                    .padding(.top, 10)
-            }
-            
-            Button(action: updateAccountSettings) {
-                Text("Update Settings")
-                    .padding()
-                    .background(Color.blue)
-                    .foregroundColor(.white)
-                    .cornerRadius(8)
-            }
-            .padding(.top, 20)
+            .padding()
+            .onAppear(perform: loadUserData)
         }
-        .padding()
-        .onAppear(perform: loadUserData)
+        .edgesIgnoringSafeArea(.all) // Ensure background covers entire screen
     }
     
     private func loadUserData() {
@@ -398,6 +435,7 @@ struct SettingsView: View {
 struct BusTableView: View {
     let schoolName: String
     @State private var navigateToSettings = false
+    @Environment(\.presentationMode) var presentationMode // Access the presentation mode to pop the view
 
     var body: some View {
         NavigationView {
@@ -444,7 +482,16 @@ struct BusTableView: View {
                 }
                 .padding(.top, 20) // Adjusted padding for the top section
                 .navigationTitle("") // Clear the navigation title
-                .navigationBarItems(trailing:
+                .navigationBarBackButtonHidden(true) // Hide the default back button
+                .navigationBarItems(leading:
+                    Button(action: {
+                        // Handle logout action
+                        logout()
+                    }) {
+                        Text("Logout")
+                            .font(.title)
+                    },
+                    trailing:
                     Button(action: {
                         navigateToSettings = true
                     }) {
@@ -459,6 +506,12 @@ struct BusTableView: View {
                 )
             }
         }
+    }
+
+    private func logout() {
+        // Perform your logout logic here, for example:
+        // Navigate back to ContentView
+        presentationMode.wrappedValue.dismiss() // This will dismiss the current view
     }
 }
 
@@ -730,11 +783,23 @@ struct SignUpView: View {
 }
 
 
+struct BusTableView_Previews: PreviewProvider {
+    static var previews: some View {
+        // Provide a sample school name for the preview
+        BusTableView(schoolName: "Sample School")
+    }
+}
 
 
 struct SignUpView_Previews: PreviewProvider {
     static var previews: some View {
         SignUpView()
+    }
+}
+
+struct SettingsView_Previews: PreviewProvider {
+    static var previews: some View {
+        SettingsView()
     }
 }
 
