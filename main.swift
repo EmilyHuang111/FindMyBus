@@ -51,6 +51,7 @@ struct ContentView: View {
                         TextField("Enter your email", text: $email)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                             .padding(.horizontal, 40)
+                            .autocapitalization(.none)
                         
                         HStack {
                             Text("Password")
@@ -64,6 +65,7 @@ struct ContentView: View {
                         SecureField("Enter your password", text: $password)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                             .padding(.horizontal, 40)
+                            .autocapitalization(.none)
                         
                         Button(action: {
                             login()
@@ -283,9 +285,6 @@ struct BusTableView: View {
     }
 }
 
-
-
-
 struct SignUpView: View {
     @State private var name: String = ""
     @State private var email: String = ""
@@ -297,13 +296,37 @@ struct SignUpView: View {
     @State private var adminPassword: String = ""
     @State private var isAdminPasswordRequired: Bool = false
     @State private var selectedSchool: String = "" // State for selected school
+    @State private var showForgotPasswordAlert: Bool = false // State to trigger forgot password alert
 
     private let roles = ["Student", "Admin"]
-    private let correctAdminPassword = "123" // Set the correct admin password here
-    private let schools = ["American Heritage Plantation", "Coral Springs High School", "Coral Glades High School", "Falcon Cove Middle School", "Cyprus Bay High School", "Westglades Middle School"] // List of schools
-
+    
+    // Dictionary for school admin passwords
+    private let schoolAdminPasswords: [String: String] = [
+        "Coral Springs High School": "admin123CSHS",
+        "Coral Glades High School": "admin123CGHS",
+        "Falcon Cove Middle School": "admin123FCMS",
+        "Cyprus Bay High School": "admin123CBHS",
+        "Westglades Middle School": "admin123WGMS",
+        "American Heritage Plantation": "admin123AHP"
+    ]
+    
+    private let schools = ["Coral Springs High School", "Coral Glades High School", "Falcon Cove Middle School", "Cyprus Bay High School", "Westglades Middle School", "American Heritage Plantation"].sorted() // List of schools
+    
     // Reference to Firestore database
     let db = Firestore.firestore()
+    
+    private func isPasswordValid(_ password: String) -> Bool {
+        // Check if password is at least 8 characters long
+        guard password.count >= 8 else { return false }
+        
+        // Check if password contains at least one uppercase letter
+        let uppercaseLetter = password.rangeOfCharacter(from: .uppercaseLetters) != nil
+        
+        // Check if password contains at least one number
+        let number = password.rangeOfCharacter(from: .decimalDigits) != nil
+        
+        return uppercaseLetter && number
+    }
     
     private func signUp() {
         // Basic validation
@@ -317,118 +340,191 @@ struct SignUpView: View {
             return
         }
         
+        // Validate password criteria
+        guard isPasswordValid(password) else {
+            errorMessage = "Password must be at least 8 characters long, contain an uppercase letter, and include a number."
+            return
+        }
+        
         // If Admin role is selected, validate the admin password
         if role == "Admin" {
-            guard adminPassword == correctAdminPassword else {
-                errorMessage = "Invalid admin password"
+            guard let correctAdminPassword = schoolAdminPasswords[selectedSchool],
+                  adminPassword == correctAdminPassword else {
+                errorMessage = "Invalid admin password for the selected school"
                 return
             }
         }
         
-        // Save the user data to Firestore
-        let userData: [String: Any] = [
-            "name": name,
-            "email": email,
-            "role": role,
-            "password": password, // Storing the password
-            "school": selectedSchool
-            // Save the selected school
-        ]
-        
-        db.collection("users").addDocument(data: userData) { error in
+        // Check if email already exists
+        db.collection("users").whereField("email", isEqualTo: email).getDocuments { snapshot, error in
             if let error = error {
-                errorMessage = "Failed to sign up: \(error.localizedDescription)"
-                isSignUpSuccessful = false
-            } else {
-                isSignUpSuccessful = true
-                errorMessage = nil
+                errorMessage = "Failed to check email existence: \(error.localizedDescription)"
+                return
+            }
+            
+            if let snapshot = snapshot, !snapshot.isEmpty {
+                // Email already exists
+                errorMessage = "The email address is already in use."
+                return
+            }
+            
+            // Proceed to save the user data to Firestore
+            let userData: [String: Any] = [
+                "name": name,
+                "email": email,
+                "role": role,
+                "password": password, // Storing the password (consider hashing it in a real-world app)
+                "school": selectedSchool
+            ]
+            
+            db.collection("users").addDocument(data: userData) { error in
+                if let error = error {
+                    errorMessage = "Failed to sign up: \(error.localizedDescription)"
+                    isSignUpSuccessful = false
+                } else {
+                    isSignUpSuccessful = true
+                    errorMessage = nil
 
-                // Clear fields after successful sign-up
-                name = ""
-                email = ""
-                password = ""
-                confirmPassword = ""
-                adminPassword = ""
-                selectedSchool = "" // Clear selected school
+                    // Clear fields after successful sign-up
+                    name = ""
+                    email = ""
+                    password = ""
+                    confirmPassword = ""
+                    adminPassword = ""
+                    selectedSchool = "" // Clear selected school
+                }
+            }
+        }
+    }
+    
+    private func sendPasswordResetEmail() {
+        guard !email.isEmpty else {
+            errorMessage = "Please enter your email address"
+            return
+        }
+        
+        Auth.auth().sendPasswordReset(withEmail: email) { error in
+            if let error = error {
+                errorMessage = "Failed to send reset email: \(error.localizedDescription)"
+            } else {
+                errorMessage = "A password reset email has been sent to \(email)"
+                showForgotPasswordAlert = false // Dismiss the alert
             }
         }
     }
     
     var body: some View {
-        VStack {
-            Text("Sign Up")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-                .padding(.top, 20)
-                .padding(.bottom, 20)
-            
-            TextField("Name", text: $name)
-                .padding()
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-            
-            TextField("Email", text: $email)
-                .padding()
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-                .keyboardType(.emailAddress)
-                .autocapitalization(.none)
-            
-            SecureField("Password", text: $password)
-                .padding()
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-            
-            SecureField("Confirm Password", text: $confirmPassword)
-                .padding()
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-            
-            Picker("Role", selection: $role) {
-                ForEach(roles, id: \.self) { role in
-                    Text(role).tag(role)
-                }
-            }
-            .pickerStyle(SegmentedPickerStyle()) // or .menu for a dropdown style
-            .onChange(of: role) { newValue in
-                isAdminPasswordRequired = newValue == "Admin"
-            }
-            
-            if isAdminPasswordRequired {
-                SecureField("Admin Password", text: $adminPassword)
+        NavigationView {
+            VStack {
+                Text("Sign Up")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .padding(.top, 20)
+                    .padding(.bottom, 20)
+                
+                TextField("Name", text: $name)
                     .padding()
                     .textFieldStyle(RoundedBorderTextFieldStyle())
-            }
+                    .autocapitalization(.none)
+                
+                TextField("Email", text: $email)
+                    .padding()
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .keyboardType(.emailAddress)
+                    .autocapitalization(.none)
+                
+                SecureField("Password", text: $password)
+                    .padding()
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .autocapitalization(.none)
+                
+                SecureField("Confirm Password", text: $confirmPassword)
+                    .padding()
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .autocapitalization(.none)
+                
+                Picker("Role", selection: $role) {
+                    ForEach(roles, id: \.self) { role in
+                        Text(role).tag(role)
+                    }
+                }
+                .pickerStyle(SegmentedPickerStyle()) // or .menu for a dropdown style
+                .onChange(of: role) { newValue in
+                    isAdminPasswordRequired = newValue == "Admin"
+                }
+                
+                Picker("School", selection: $selectedSchool) {
+                    Text("Select a school").tag("")
+                    ForEach(schools, id: \.self) { school in
+                        Text(school).tag(school)
+                    }
+                }
+                .padding()
+                .pickerStyle(MenuPickerStyle()) // or .wheel for a wheel style
 
-            Picker("School", selection: $selectedSchool) {
-                Text("Select a school").tag("")
-                ForEach(schools, id: \.self) { school in
-                    Text(school).tag(school)
+                if isAdminPasswordRequired {
+                    SecureField("Admin Password", text: $adminPassword)
+                        .padding()
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                }
+
+                if let errorMessage = errorMessage {
+                    Text(errorMessage)
+                        .foregroundColor(.red)
+                        .padding(.top, 10)
+                }
+                
+                Button(action: signUp) {
+                    Text("Sign Up")
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                }
+                .padding(.top, 20)
+                
+                if isSignUpSuccessful {
+                    Text("Sign Up Successful!")
+                        .foregroundColor(.green)
+                        .padding(.top, 10)
+                }
+                
+                if errorMessage == "The email address is already in use." {
+                    VStack {
+                        Text("Already have an account?")
+                            .padding(.top, 20)
+                        
+                        NavigationLink(destination: ContentView()) {
+                            Text("Login with existing account")
+                                .foregroundColor(.blue)
+                                .padding(.top, 5)
+                        }
+                        
+                        Button(action: {
+                            showForgotPasswordAlert = true
+                        }) {
+                            Text("Forgot Password?")
+                                .foregroundColor(.blue)
+                                .padding(.top, 5)
+                        }
+                        .alert(isPresented: $showForgotPasswordAlert) {
+                            Alert(
+                                title: Text("Forgot Password"),
+                                message: Text("Enter your email address to receive a password reset link."),
+                                primaryButton: .default(Text("Send"), action: {
+                                    sendPasswordResetEmail()
+                                }),
+                                secondaryButton: .cancel()
+                            )
+                        }
+                    }
                 }
             }
             .padding()
-            .pickerStyle(MenuPickerStyle()) // or .wheel for a wheel style
-            
-            if let errorMessage = errorMessage {
-                Text(errorMessage)
-                    .foregroundColor(.red)
-                    .padding(.top, 10)
-            }
-            
-            Button(action: signUp) {
-                Text("Sign Up")
-                    .padding()
-                    .background(Color.blue)
-                    .foregroundColor(.white)
-                    .cornerRadius(8)
-            }
-            .padding(.top, 20)
-            
-            if isSignUpSuccessful {
-                Text("Sign Up Successful!")
-                    .foregroundColor(.green)
-                    .padding(.top, 10)
-            }
         }
-        .padding()
     }
 }
+
 
 
 struct SignUpView_Previews: PreviewProvider {
