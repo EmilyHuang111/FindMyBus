@@ -1,10 +1,7 @@
 import SwiftUI
 import Firebase
 import FirebaseFirestore
-import FirebaseCore
 import FirebaseAuth
-
-
 
 struct ContentView: View {
     @State private var selectedSchool = "Choose a school"
@@ -13,6 +10,8 @@ struct ContentView: View {
     @State private var userName = ""
     @State private var errorMessage: String?
     @State private var navigateToBusTableView = false
+    @State private var showForgotPassword = false
+    @State private var showConfirmationAlert = false
 
     var body: some View {
         NavigationView {
@@ -67,6 +66,13 @@ struct ContentView: View {
                             .padding(.horizontal, 40)
                             .autocapitalization(.none)
                         
+                        if let errorMessage = errorMessage {
+                            Text(errorMessage)
+                                .foregroundColor(.red)
+                                .font(.subheadline)
+                                .padding(.horizontal, 40)
+                        }
+                        
                         Button(action: {
                             login()
                         }) {
@@ -80,6 +86,17 @@ struct ContentView: View {
                                 .shadow(radius: 5)
                         }
                         .padding(.horizontal, 40)
+                        
+                        if showForgotPassword {
+                            Button(action: {
+                                forgotPassword()
+                            }) {
+                                Text("Forgot Password?")
+                                    .font(.subheadline)
+                                    .foregroundColor(.blue)
+                                    .padding()
+                            }
+                        }
                     }
                     .padding(.bottom, 20)
                     
@@ -99,11 +116,14 @@ struct ContentView: View {
                     }
                     
                 }
-                .alert(isPresented: .constant(errorMessage != nil)) {
+                .alert(isPresented: $showConfirmationAlert) {
                     Alert(
-                        title: Text("Error"),
-                        message: Text(errorMessage ?? "An unknown error occurred."),
-                        dismissButton: .default(Text("OK"))
+                        title: Text("Send Password Reset Email"),
+                        message: Text("Are you sure you want to send a password reset email to \(email)?"),
+                        primaryButton: .destructive(Text("Send")) {
+                            sendPasswordResetEmail()
+                        },
+                        secondaryButton: .cancel()
                     )
                 }
             }
@@ -111,35 +131,72 @@ struct ContentView: View {
     }
     
     private func login() {
-        let db = Firestore.firestore()
-        
-        // Fetch user data from Firestore
-        db.collection("users").whereField("email", isEqualTo: email).getDocuments { snapshot, error in
-            if let error = error {
-                errorMessage = "Failed to login: \(error.localizedDescription)"
+        Auth.auth().signIn(withEmail: email, password: password) { result, error in
+            if let error = error as NSError? {
+                // Check if the error is related to incorrect password
+                if error.code == AuthErrorCode.wrongPassword.rawValue {
+                    errorMessage = "Incorrect password. Please try again."
+                    showForgotPassword = true // Show the Forgot Password button
+                } else {
+                    errorMessage = "Incorrect pasword or email address."
+                    showForgotPassword = true
+                }
                 return
             }
             
-            guard let documents = snapshot?.documents, !documents.isEmpty else {
-                errorMessage = "No user found with this email."
+            // Check if the user is signed in
+            guard let user = result?.user else {
+                errorMessage = "User not found."
+                showForgotPassword = false // Hide the Forgot Password button
                 return
             }
             
-            let userData = documents.first?.data()
-            let storedPassword = userData?["password"] as? String
-            let userSchool = userData?["school"] as? String
-            
-            if password == storedPassword {
-                // Password matches, navigate to BusTableView
-                userName = userData?["name"] as? String ?? "User"
-                selectedSchool = userSchool ?? "Unknown School"
+            // Fetch user details from Firestore
+            let db = Firestore.firestore()
+            db.collection("users").document(user.uid).getDocument { document, error in
+                if let error = error {
+                    errorMessage = "Failed to fetch user details: \(error.localizedDescription)"
+                    showForgotPassword = false // Hide the Forgot Password button
+                    return
+                }
+                
+                guard let data = document?.data() else {
+                    errorMessage = "User details not found."
+                    showForgotPassword = false // Hide the Forgot Password button
+                    return
+                }
+                
+                // Retrieve user data from Firestore
+                userName = data["name"] as? String ?? "User"
+                selectedSchool = data["school"] as? String ?? "Unknown School"
+                
+                // Navigate to BusTableView
                 navigateToBusTableView = true
-            } else {
-                errorMessage = "Incorrect password."
+                errorMessage = nil // Clear error message on successful login
+                showForgotPassword = false // Hide the Forgot Password button
             }
         }
     }
 
+    
+    private func forgotPassword() {
+        guard !email.isEmpty else {
+            errorMessage = "Please enter your email address."
+            return
+        }
+        
+        showConfirmationAlert = true
+    }
+    
+    private func sendPasswordResetEmail() {
+        Auth.auth().sendPasswordReset(withEmail: email) { error in
+            if let error = error {
+                errorMessage = "Failed to send reset email: \(error.localizedDescription)"
+            } else {
+                errorMessage = "Password reset email sent successfully."
+            }
+        }
+    }
 }
 
 struct GreetingView: View {
@@ -156,6 +213,7 @@ struct GreetingView: View {
         .edgesIgnoringSafeArea(.all)
     }
 }
+
 
 
 
@@ -285,6 +343,7 @@ struct BusTableView: View {
     }
 }
 
+
 struct SignUpView: View {
     @State private var name: String = ""
     @State private var email: String = ""
@@ -356,42 +415,56 @@ struct SignUpView: View {
         }
         
         // Check if email already exists
-        db.collection("users").whereField("email", isEqualTo: email).getDocuments { snapshot, error in
+        Auth.auth().fetchSignInMethods(forEmail: email) { methods, error in
             if let error = error {
                 errorMessage = "Failed to check email existence: \(error.localizedDescription)"
                 return
             }
             
-            if let snapshot = snapshot, !snapshot.isEmpty {
+            if let methods = methods, !methods.isEmpty {
                 // Email already exists
                 errorMessage = "The email address is already in use."
                 return
             }
             
-            // Proceed to save the user data to Firestore
-            let userData: [String: Any] = [
-                "name": name,
-                "email": email,
-                "role": role,
-                "password": password, // Storing the password (consider hashing it in a real-world app)
-                "school": selectedSchool
-            ]
-            
-            db.collection("users").addDocument(data: userData) { error in
+            // Proceed to create the user with Firebase Authentication
+            Auth.auth().createUser(withEmail: email, password: password) { result, error in
                 if let error = error {
                     errorMessage = "Failed to sign up: \(error.localizedDescription)"
                     isSignUpSuccessful = false
-                } else {
-                    isSignUpSuccessful = true
-                    errorMessage = nil
+                    return
+                }
+                
+                // User created successfully, save additional user data in Firestore
+                guard let user = result?.user else {
+                    errorMessage = "Failed to get user information."
+                    isSignUpSuccessful = false
+                    return
+                }
+                
+                let userData: [String: Any] = [
+                    "name": name,
+                    "email": email,
+                    "role": role,
+                    "school": selectedSchool
+                ]
+                
+                db.collection("users").document(user.uid).setData(userData) { error in
+                    if let error = error {
+                        errorMessage = "Failed to save user data: \(error.localizedDescription)"
+                        isSignUpSuccessful = false
+                    } else {
+                        isSignUpSuccessful = true
+                        errorMessage = nil
 
-                    // Clear fields after successful sign-up
-                    name = ""
-                    email = ""
-                    password = ""
-                    confirmPassword = ""
-                    adminPassword = ""
-                    selectedSchool = "" // Clear selected school
+                        // Clear fields after successful sign-up
+                        name = ""
+                        email = ""
+                        password = ""
+                        confirmPassword = ""
+                        adminPassword = ""
+                        selectedSchool = "" // Clear selected school
+                    }
                 }
             }
         }
@@ -402,17 +475,19 @@ struct SignUpView: View {
             errorMessage = "Please enter your email address"
             return
         }
-        
+
         Auth.auth().sendPasswordReset(withEmail: email) { error in
             if let error = error {
                 errorMessage = "Failed to send reset email: \(error.localizedDescription)"
+                print("Error: \(error.localizedDescription)")
             } else {
                 errorMessage = "A password reset email has been sent to \(email)"
+                print("Password reset email sent to: \(email)")
                 showForgotPasswordAlert = false // Dismiss the alert
             }
         }
     }
-    
+
     var body: some View {
         NavigationView {
             VStack {
@@ -524,6 +599,7 @@ struct SignUpView: View {
         }
     }
 }
+
 
 
 
