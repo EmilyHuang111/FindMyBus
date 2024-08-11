@@ -234,7 +234,7 @@ struct AdminLoginView: View {
         "Coral Springs High School": "1234",
         "Coral Glades High School": "12345",
         "Falcon Cove Middle School": "123456",
-        "Cyprus Bay High School": "1234567",
+        "Cypress Bay High School": "1234567",
         "American Heritage Plantation": "12345678"
     ]
     
@@ -432,20 +432,45 @@ struct SettingsView: View {
 
 
 
+
 struct BusTableView: View {
     let schoolName: String
     @State private var navigateToSettings = false
+    @State private var navigateToMoreBusInfo = false
     @Environment(\.presentationMode) var presentationMode // Access the presentation mode to pop the view
-
+    
+    // Dictionary to map school names to bus departure times
+    let departureTimes: [String: String] = [
+        "Coral Springs High School": "2:50 PM",
+        "Coral Glades High School": "2:50 PM",
+        "Falcon Cove Middle School": "2:50 PM",
+        "Cyprus Bay High School": "2:50 AM",
+        "American Heritage Plantation": "4:00 PM",
+        "Westglades Middle School": "2:50 PM",
+    ]
+    
     var body: some View {
         NavigationView {
             ZStack {
                 Color(.systemBrown).opacity(0.2).edgesIgnoringSafeArea(.all)
                 VStack {
-                    // Display Selected School Name
-                    Text("\(schoolName) Bus Loop")
-                        .font(.largeTitle)
-                        .padding()
+                    // Display Selected School Name and Departure Time
+                    VStack(alignment: .center) {
+                        Text("\(schoolName) Bus Loop")
+                            .font(.system(size: 20))
+                            .bold()
+                            .padding()
+                        
+                        if let departureTime = departureTimes[schoolName] {
+                            Text("Bus departs at \(departureTime)")
+                                .font(.system(size: 20))
+                                .padding(.bottom, 20)
+                                .fontWeight(.bold)
+                                .foregroundColor(.red)
+                            
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .center)
                     
                     HStack {
                         // First Column
@@ -479,6 +504,25 @@ struct BusTableView: View {
                     .padding(.top, 50)
                     
                     Spacer()
+                    
+                    // More Bus Info Button
+                    Button(action: {
+                        navigateToMoreBusInfo = true
+                    }) {
+                        Text("More Bus Info")
+                            .font(.title2)
+                            .padding(10)
+                            .frame(width: 200, height: 40)
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(10)
+                    }
+                    .padding(.bottom, 20)
+                    .background(
+                        NavigationLink(destination: MoreBusInfoView(schoolName: schoolName), isActive: $navigateToMoreBusInfo) {
+                            EmptyView()
+                        }
+                    )
                 }
                 .padding(.top, 20) // Adjusted padding for the top section
                 .navigationTitle("") // Clear the navigation title
@@ -489,7 +533,8 @@ struct BusTableView: View {
                         logout()
                     }) {
                         Text("Logout")
-                            .font(.title)
+                            .font(.body)
+                            .cornerRadius(8)
                     },
                     trailing:
                     Button(action: {
@@ -517,6 +562,183 @@ struct BusTableView: View {
 
 
 
+struct MoreBusInfoView: View {
+    let schoolName: String
+    @State private var busInfo: String = "" // State variable to hold the text in the text box
+    @State private var isAdmin: Bool = false // State to track if the user is an admin
+    @State private var successMessage: String? = nil // State variable for the success message
+    @State private var userEmail: String? = nil // State to hold the user's email
+    @State private var messages: [BusMessage] = [] // State to hold all messages for the day
+
+    // Firebase Auth user
+    @StateObject private var userAuth = UserAuth()
+
+    var body: some View {
+        ZStack {
+            // Set the background color to cover the whole screen
+            Color(.systemBrown).opacity(0.2)
+                .edgesIgnoringSafeArea(.all) // Extend the background color to the edges
+
+            VStack {
+                Text("\(schoolName) Bus Loop")
+                    .font(.system(size: 20))
+                    .bold()
+                    .padding()
+                
+                Spacer()
+                
+                // Conditionally display the text box based on user role
+                if isAdmin {
+                    TextEditor(text: $busInfo)
+                        .frame(width: 300, height: 200) // Adjust width and height as needed
+                        .padding()
+                        .background(Color.white)
+                        .cornerRadius(10)
+                        .shadow(radius: 5)
+                    
+                    // Save Button
+                    Button(action: saveBusInfo) {
+                        Text("Save")
+                            .font(.headline)
+                            .padding()
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(10)
+                    }
+                    .padding()
+                }
+                
+                // Success Message
+                if let message = successMessage {
+                    Text(message)
+                        .font(.headline)
+                        .foregroundColor(.green)
+                        .padding()
+                }
+                
+                // Display Messages
+                List(messages) { message in
+                    VStack(alignment: .leading) {
+                        Text(message.info)
+                            .font(.body)
+                        Text("Posted by: \(message.updatedBy)")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                        Text("Timestamp: \(message.timestamp.dateValue(), formatter: dateFormatter)")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                    }
+                    .padding()
+                }
+                
+                Spacer()
+            }
+            .padding()
+        }
+        .navigationTitle("More Bus Info")
+        .onAppear {
+            fetchUserRole() // Fetch the user role when the view appears
+            fetchUserEmail() // Fetch the user email when the view appears
+            fetchMessages() // Fetch existing messages when the view appears
+        }
+    }
+    
+    // Fetch the user role from Firebase and set the isAdmin state
+    private func fetchUserRole() {
+        guard let userId = userAuth.currentUser?.uid else { return }
+        
+        let db = Firestore.firestore()
+        db.collection("users").document(userId).getDocument { document, error in
+            if let document = document, document.exists {
+                let data = document.data()
+                let role = data?["role"] as? String ?? ""
+                isAdmin = (role == "Admin")
+            } else {
+                print("Document does not exist")
+            }
+        }
+    }
+    
+    // Fetch the user email from Firebase Auth
+    private func fetchUserEmail() {
+        userEmail = userAuth.currentUser?.email
+    }
+    
+    // Save the bus info to Firestore
+    private func saveBusInfo() {
+        guard let userId = userAuth.currentUser?.uid else {
+            print("User not authenticated")
+            return
+        }
+        
+        let db = Firestore.firestore()
+        let now = Timestamp()
+        db.collection("busInfo").document(schoolName).collection("messages").addDocument(data: [
+            "info": busInfo,
+            "updatedBy": userEmail ?? "Unknown",
+            "school": schoolName,
+            "timestamp": now
+        ]) { error in
+            if let error = error {
+                print("Error writing document: \(error)")
+                successMessage = "Failed to save. Please try again." // Set error message if save fails
+            } else {
+                successMessage = "Successfully saved!" // Set success message if save is successful
+                fetchMessages() // Refresh the list of messages after saving
+            }
+        }
+    }
+    
+    // Fetch messages for the current day
+    private func fetchMessages() {
+        let db = Firestore.firestore()
+        let now = Timestamp()
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: now.dateValue())
+        let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
+        
+        db.collection("busInfo").document(schoolName).collection("messages")
+            .whereField("timestamp", isGreaterThanOrEqualTo: Timestamp(date: startOfDay))
+            .whereField("timestamp", isLessThan: Timestamp(date: endOfDay))
+            .order(by: "timestamp", descending: true)
+            .addSnapshotListener { querySnapshot, error in
+                if let error = error {
+                    print("Error fetching messages: \(error)")
+                } else {
+                    messages = querySnapshot?.documents.compactMap { document in
+                        try? document.data(as: BusMessage.self)
+                    } ?? []
+                }
+            }
+    }
+}
+
+// Data model for messages
+struct BusMessage: Identifiable, Codable {
+    @DocumentID var id: String?
+    var info: String
+    var updatedBy: String
+    var school: String
+    var timestamp: Timestamp
+}
+
+// A simple ObservableObject class to manage user authentication
+class UserAuth: ObservableObject {
+    @Published var currentUser: User? = Auth.auth().currentUser
+}
+
+// DateFormatter for displaying timestamp
+private let dateFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .medium
+    formatter.timeStyle = .short
+    return formatter
+}()
+
+
+
+
+
 struct SignUpView: View {
     @State private var name: String = ""
     @State private var email: String = ""
@@ -537,12 +759,12 @@ struct SignUpView: View {
         "Coral Springs High School": "admin123CSHS",
         "Coral Glades High School": "admin123CGHS",
         "Falcon Cove Middle School": "admin123FCMS",
-        "Cyprus Bay High School": "admin123CBHS",
+        "Cypress Bay High School": "admin123CBHS",
         "Westglades Middle School": "admin123WGMS",
         "American Heritage Plantation": "admin123AHP"
     ]
     
-    private let schools = ["Coral Springs High School", "Coral Glades High School", "Falcon Cove Middle School", "Cyprus Bay High School", "Westglades Middle School", "American Heritage Plantation"].sorted() // List of schools
+    private let schools = ["Coral Springs High School", "Coral Glades High School", "Falcon Cove Middle School", "Cypress Bay High School", "Westglades Middle School", "American Heritage Plantation"].sorted() // List of schools
     
     // Reference to Firestore database
     let db = Firestore.firestore()
@@ -608,13 +830,14 @@ struct SignUpView: View {
                     return
                 }
                 
-                // User created successfully, send verification email
+                // User created successfully
                 guard let user = result?.user else {
                     errorMessage = "Failed to get user information."
                     isSignUpSuccessful = false
                     return
                 }
                 
+                // Send email verification
                 user.sendEmailVerification { error in
                     if let error = error {
                         errorMessage = "Failed to send verification email: \(error.localizedDescription)"
@@ -636,8 +859,7 @@ struct SignUpView: View {
                             isSignUpSuccessful = false
                         } else {
                             isSignUpSuccessful = true
-                            errorMessage = nil
-
+        
                             // Clear fields after successful sign-up
                             name = ""
                             email = ""
@@ -651,6 +873,7 @@ struct SignUpView: View {
             }
         }
     }
+
     
     private func sendPasswordResetEmail() {
         guard !email.isEmpty else {
@@ -781,6 +1004,12 @@ struct SignUpView: View {
         }
     }
 }
+
+
+
+
+
+
 
 
 struct BusTableView_Previews: PreviewProvider {
