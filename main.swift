@@ -431,13 +431,14 @@ struct SettingsView: View {
 
 
 
-
-
 struct BusTableView: View {
     let schoolName: String
     @State private var navigateToSettings = false
     @State private var navigateToMoreBusInfo = false
     @Environment(\.presentationMode) var presentationMode // Access the presentation mode to pop the view
+    
+    @State private var userRole: String = "student" // Default role
+    @State private var userEmail: String = "" // To hold the user's email
     
     // Dictionary to map school names to bus departure times
     let departureTimes: [String: String] = [
@@ -449,6 +450,12 @@ struct BusTableView: View {
         "Westglades Middle School": "2:50 PM",
     ]
     
+    // State variables to hold text field values
+    @State private var textFieldValues: [[String]] = Array(repeating: Array(repeating: "", count: 4), count: 12)
+    
+    // State variable for tracking the save success
+    @State private var showSuccessMessage = false
+    
     var body: some View {
         NavigationView {
             ZStack {
@@ -459,7 +466,7 @@ struct BusTableView: View {
                         Text("\(schoolName) Bus Loop")
                             .font(.system(size: 20))
                             .bold()
-                            .padding()
+                            .padding(.bottom, -11)
                         
                         if let departureTime = departureTimes[schoolName] {
                             Text("Bus departs at \(departureTime)")
@@ -467,43 +474,86 @@ struct BusTableView: View {
                                 .padding(.bottom, 20)
                                 .fontWeight(.bold)
                                 .foregroundColor(.red)
-                            
+                                .padding(.bottom, -15)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .center)
                     
-                    HStack {
-                        // First Column
-                        VStack(spacing: 0) {
-                            ForEach(1...12, id: \.self) { busNumber in
-                                HStack {
-                                    Text("Bus # \(busNumber)")
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .padding(.vertical, 4)
-                                }
-                                .background(Color.clear)
-                                .border(Color.gray, width: 0.5)
+                    // Add the image on top of the grid
+                    Image("Untitled design")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 350, height: 200) // Adjust the size as needed
+                        .padding(.bottom, -15) // Optional: Adds some space between the image and the grid
+
+                    VStack(spacing: 0) {
+                        ForEach(0..<12, id: \.self) { rowIndex in
+                            HStack(spacing: 0) {
+                                // First Column (Label)
+                                Text("\(rowIndex + 1).") // Numbers from 1 to 12
+                                    .font(.system(size: 13))
+                                    .frame(width: 30, height: 22, alignment: .leading) // Increased width
+                                    .padding(3)
+                                    .border(Color.gray, width: 0.5)
+                                
+                                // Second Column (TextField)
+                                TextField("Bus #", text: $textFieldValues[rowIndex][0])
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .frame(width: 100, height: 22) // Increased width
+                                    .padding(3)
+                                    .border(Color.gray, width: 0.5)
+                                    .disabled(userRole != "Admin") // Disable if not admin
+                                
+                                // Third Column (Label)
+                                Text("\(rowIndex + 12 + 1).") // Numbers from 13 to 24
+                                    .font(.system(size: 13))
+                                    .frame(width: 30, height: 22, alignment: .leading) // Increased width
+                                    .padding(3)
+                                    .border(Color.gray, width: 0.5)
+                                
+                                // Fourth Column (TextField)
+                                TextField("Bus #", text: $textFieldValues[rowIndex][1])
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .frame(width: 100, height: 22) // Increased width
+                                    .padding(3)
+                                    .border(Color.gray, width: 0.5)
+                                    .disabled(userRole != "Admin") // Disable if not admin
                             }
                         }
-                        .frame(maxWidth: 150)
-                        
-                        // Second Column
-                        VStack(spacing: 0) {
-                            ForEach(13...24, id: \.self) { busNumber in
-                                HStack {
-                                    Text("Bus # \(busNumber)")
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .padding(.vertical, 4)
-                                }
-                                .background(Color.clear)
-                                .border(Color.gray, width: 0.5)
-                            }
-                        }
-                        .frame(maxWidth: 150)
                     }
-                    .padding(.top, 50)
+                    .border(Color.black, width: 1) // Added border around the entire grid
+                    .padding(5) // Optional: Adds some padding around the grid
+                    .padding(.top, 20)
+                    .padding(.bottom, 20)
                     
+                    // Display the success message
+                    if showSuccessMessage {
+                        Text("Bus info saved successfully!")
+                            .foregroundColor(.green)
+                            .padding(.top, -20)
+                            .padding(.bottom, -20)
+                            .transition(.opacity)
+                            .animation(.easeInOut, value: showSuccessMessage)
+                    }
+                    
+                    // Spacer to push buttons down
                     Spacer()
+                    
+                    // Save Button (conditionally shown only for admins)
+                    if userRole == "Admin" {
+                        Button(action: {
+                            saveBusInfoToFirebase()
+                        }) {
+                            Text("Save")
+                                .font(.title2)
+                                .padding(10)
+                                .frame(width: 200, height: 40)
+                                .background(Color.green)
+                                .foregroundColor(.white)
+                                .cornerRadius(10)
+                        }
+                        .padding(.top, 10) // Adjust padding to move the Save button down
+                    }
                     
                     // More Bus Info Button
                     Button(action: {
@@ -517,12 +567,13 @@ struct BusTableView: View {
                             .foregroundColor(.white)
                             .cornerRadius(10)
                     }
-                    .padding(.bottom, 20)
                     .background(
                         NavigationLink(destination: MoreBusInfoView(schoolName: schoolName), isActive: $navigateToMoreBusInfo) {
                             EmptyView()
                         }
                     )
+                    
+                    Spacer()
                 }
                 .padding(.top, 20) // Adjusted padding for the top section
                 .navigationTitle("") // Clear the navigation title
@@ -551,14 +602,103 @@ struct BusTableView: View {
                 )
             }
         }
+        .onAppear {
+            fetchUserRole() // Fetch the user role when the view appears
+            fetchBusInfo()
+        }
+    }
+
+    private func saveBusInfoToFirebase() {
+        let db = Firestore.firestore()
+        let busInfo = textFieldValues.flatMap { $0 } // Flatten the array
+        let timestamp = Timestamp(date: Date()) // Current timestamp
+        let email = userEmail // User's email
+        
+        // Document data
+        let documentData: [String: Any] = [
+            "busNumbers": busInfo,
+            "timestamp": timestamp,
+            "email": email,
+            "school": schoolName
+        ]
+        
+        db.collection("bus_info").document(schoolName).setData(documentData) { error in
+            if let error = error {
+                print("Error saving bus info: \(error.localizedDescription)")
+            } else {
+                print("Bus info saved successfully!")
+                showSuccessMessage = true
+                
+                // Automatically hide the success message after 2 seconds
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    withAnimation {
+                        showSuccessMessage = false
+                    }
+                }
+            }
+        }
+    }
+
+    private func fetchBusInfo() {
+        let db = Firestore.firestore()
+        let docRef = db.collection("bus_info").document(schoolName)
+
+        docRef.getDocument { document, error in
+            if let document = document, document.exists {
+                if let data = document.data(), let busNumbers = data["busNumbers"] as? [String] {
+                    // Convert busNumbers to 2D array for text fields
+                    let rows = 12
+                    let columns = 2
+                    var newTextFieldValues = Array(repeating: Array(repeating: "", count: columns), count: rows)
+                    
+                    for (index, number) in busNumbers.enumerated() {
+                        let row = index / columns
+                        let column = index % columns
+                        if row < rows {
+                            newTextFieldValues[row][column] = number
+                        }
+                    }
+                    
+                    DispatchQueue.main.async {
+                        textFieldValues = newTextFieldValues
+                    }
+                }
+            } else {
+                print("Document does not exist")
+            }
+        }
+    }
+
+    private func fetchUserRole() {
+        guard let userID = Auth.auth().currentUser?.uid else {
+            print("No user is logged in")
+            return
+        }
+
+        let db = Firestore.firestore()
+        db.collection("users").document(userID).getDocument { document, error in
+            if let document = document, document.exists {
+                let data = document.data()
+                userRole = data?["role"] as? String ?? "student"
+                userEmail = data?["email"] as? String ?? ""
+            } else {
+                print("User document does not exist")
+            }
+        }
     }
 
     private func logout() {
-        // Perform your logout logic here, for example:
-        // Navigate back to ContentView
-        presentationMode.wrappedValue.dismiss() // This will dismiss the current view
+        do {
+            try Auth.auth().signOut()
+            // Navigate back to ContentView
+            presentationMode.wrappedValue.dismiss()
+        } catch {
+            print("Error signing out: \(error.localizedDescription)")
+        }
     }
 }
+
+
 
 
 
@@ -596,6 +736,7 @@ struct MoreBusInfoView: View {
                         .cornerRadius(10)
                         .shadow(radius: 5)
                     
+                    Spacer()
                     // Save Button
                     Button(action: saveBusInfo) {
                         Text("Save")
@@ -734,8 +875,6 @@ private let dateFormatter: DateFormatter = {
     formatter.timeStyle = .short
     return formatter
 }()
-
-
 
 
 
