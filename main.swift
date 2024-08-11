@@ -1,10 +1,18 @@
 import SwiftUI
+import Firebase
+import FirebaseFirestore
+import FirebaseCore
+import FirebaseAuth
+
+
 
 struct ContentView: View {
     @State private var selectedSchool = "Choose a school"
     @State private var email = ""
     @State private var password = ""
-    let schools = ["Choose a school", "Westglades Middle School", "Coral Springs High School", "Coral Glades High School", "Falcon Cove Middle School", "Cyprus Bay High School", "American Heritage Plantation"]
+    @State private var userName = ""
+    @State private var errorMessage: String?
+    @State private var navigateToBusTableView = false
 
     var body: some View {
         NavigationView {
@@ -12,7 +20,7 @@ struct ContentView: View {
                 // Background Gradient
                 LinearGradient(gradient: Gradient(colors: [Color.blue.opacity(0.3), Color.white]), startPoint: .top, endPoint: .bottom)
                     .edgesIgnoringSafeArea(.all)
-               
+                
                 VStack(spacing: 20) {
                     // App Title
                     Text("FindMyBus")
@@ -28,18 +36,6 @@ struct ContentView: View {
                         .frame(width: 150, height: 150)
                         .foregroundColor(.yellow)
                         .padding(.bottom, 50)
-                    
-                    // School Picker
-                    Picker("Select School", selection: $selectedSchool) {
-                        ForEach(schools, id: \.self) { school in
-                            Text(school)
-                        }
-                    }
-                    .pickerStyle(MenuPickerStyle())
-                    .padding(.horizontal, 40)
-                    .padding(.bottom, 10)
-                    .background(Color.white.opacity(0.2))
-                    .cornerRadius(10)
                     
                     // Email and Password Login Section
                     VStack(spacing: 10) {
@@ -70,7 +66,7 @@ struct ContentView: View {
                             .padding(.horizontal, 40)
                         
                         Button(action: {
-                            // Handle login action here
+                            login()
                         }) {
                             Text("Login")
                                 .font(.headline)
@@ -93,39 +89,71 @@ struct ContentView: View {
                             .padding(.bottom, 30)
                     }
                     
-                    // Admin Login Button
-                    NavigationLink(destination: AdminLoginView(schoolName: selectedSchool)) {
-                        Text("Admin")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .padding()
-                            .frame(maxWidth: .infinity)
-                            .background(Color.blue)
-                            .cornerRadius(10)
-                            .shadow(radius: 5)
-                    }
-                    .padding(.horizontal, 40)
-                    
-                    // Student Login Button
-                    NavigationLink(destination: BusTableView(schoolName: selectedSchool)) {
-                        Text("Student")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .padding()
-                            .frame(maxWidth: .infinity)
-                            .background(Color.green)
-                            .cornerRadius(10)
-                            .shadow(radius: 5)
-                    }
-                    .padding(.horizontal, 40)
-                    
                     Spacer()
+                    
+                    // Navigation Link to Bus Table View
+                    NavigationLink(destination: BusTableView(schoolName: selectedSchool), isActive: $navigateToBusTableView) {
+                        EmptyView()
+                    }
+                    
+                }
+                .alert(isPresented: .constant(errorMessage != nil)) {
+                    Alert(
+                        title: Text("Error"),
+                        message: Text(errorMessage ?? "An unknown error occurred."),
+                        dismissButton: .default(Text("OK"))
+                    )
                 }
             }
         }
     }
+    
+    private func login() {
+        let db = Firestore.firestore()
+        
+        // Fetch user data from Firestore
+        db.collection("users").whereField("email", isEqualTo: email).getDocuments { snapshot, error in
+            if let error = error {
+                errorMessage = "Failed to login: \(error.localizedDescription)"
+                return
+            }
+            
+            guard let documents = snapshot?.documents, !documents.isEmpty else {
+                errorMessage = "No user found with this email."
+                return
+            }
+            
+            let userData = documents.first?.data()
+            let storedPassword = userData?["password"] as? String
+            let userSchool = userData?["school"] as? String
+            
+            if password == storedPassword {
+                // Password matches, navigate to BusTableView
+                userName = userData?["name"] as? String ?? "User"
+                selectedSchool = userSchool ?? "Unknown School"
+                navigateToBusTableView = true
+            } else {
+                errorMessage = "Incorrect password."
+            }
+        }
+    }
+
 }
 
+struct GreetingView: View {
+    let name: String
+    
+    var body: some View {
+        VStack {
+            Text("Hello, \(name)!")
+                .font(.largeTitle)
+                .padding()
+            Spacer()
+        }
+        .background(Color.white)
+        .edgesIgnoringSafeArea(.all)
+    }
+}
 
 
 
@@ -256,7 +284,7 @@ struct BusTableView: View {
 }
 
 
-import SwiftUI
+
 
 struct SignUpView: View {
     @State private var name: String = ""
@@ -268,13 +296,18 @@ struct SignUpView: View {
     @State private var isSignUpSuccessful: Bool = false
     @State private var adminPassword: String = ""
     @State private var isAdminPasswordRequired: Bool = false
-    
+    @State private var selectedSchool: String = "" // State for selected school
+
     private let roles = ["Student", "Admin"]
     private let correctAdminPassword = "123" // Set the correct admin password here
+    private let schools = ["American Heritage Plantation", "Coral Springs High School", "Coral Glades High School", "Falcon Cove Middle School", "Cyprus Bay High School", "Westglades Middle School"] // List of schools
+
+    // Reference to Firestore database
+    let db = Firestore.firestore()
     
     private func signUp() {
         // Basic validation
-        guard !name.isEmpty, !email.isEmpty, !password.isEmpty else {
+        guard !name.isEmpty, !email.isEmpty, !password.isEmpty, !selectedSchool.isEmpty else {
             errorMessage = "Please fill in all fields correctly"
             return
         }
@@ -292,17 +325,33 @@ struct SignUpView: View {
             }
         }
         
-        // Perform the sign-up action (e.g., save to database)
-        // Here we'll just simulate a successful sign-up
-        isSignUpSuccessful = true
-        errorMessage = nil
+        // Save the user data to Firestore
+        let userData: [String: Any] = [
+            "name": name,
+            "email": email,
+            "role": role,
+            "password": password, // Storing the password
+            "school": selectedSchool
+            // Save the selected school
+        ]
         
-        // Clear fields after successful sign-up
-        name = ""
-        email = ""
-        password = ""
-        confirmPassword = ""
-        adminPassword = ""
+        db.collection("users").addDocument(data: userData) { error in
+            if let error = error {
+                errorMessage = "Failed to sign up: \(error.localizedDescription)"
+                isSignUpSuccessful = false
+            } else {
+                isSignUpSuccessful = true
+                errorMessage = nil
+
+                // Clear fields after successful sign-up
+                name = ""
+                email = ""
+                password = ""
+                confirmPassword = ""
+                adminPassword = ""
+                selectedSchool = "" // Clear selected school
+            }
+        }
     }
     
     var body: some View {
@@ -320,6 +369,8 @@ struct SignUpView: View {
             TextField("Email", text: $email)
                 .padding()
                 .textFieldStyle(RoundedBorderTextFieldStyle())
+                .keyboardType(.emailAddress)
+                .autocapitalization(.none)
             
             SecureField("Password", text: $password)
                 .padding()
@@ -344,6 +395,15 @@ struct SignUpView: View {
                     .padding()
                     .textFieldStyle(RoundedBorderTextFieldStyle())
             }
+
+            Picker("School", selection: $selectedSchool) {
+                Text("Select a school").tag("")
+                ForEach(schools, id: \.self) { school in
+                    Text(school).tag(school)
+                }
+            }
+            .padding()
+            .pickerStyle(MenuPickerStyle()) // or .wheel for a wheel style
             
             if let errorMessage = errorMessage {
                 Text(errorMessage)
@@ -369,6 +429,7 @@ struct SignUpView: View {
         .padding()
     }
 }
+
 
 struct SignUpView_Previews: PreviewProvider {
     static var previews: some View {
