@@ -600,29 +600,65 @@ struct BusTableView: View {
                         }
                     )
                 )
+                
+                // Refresh Button at the bottom left
+                VStack {
+                    Spacer()
+                    HStack {
+                        Button(action: {
+                            // Action for refreshing data
+                            refreshData()
+                        }) {
+                            Image("refresh")
+                                .resizable()
+                                .frame(width: 30, height: 30) // Adjust the size as needed
+                        }
+                        .padding(.leading, 40) // Adjust padding to position the button
+                        Spacer()
+                    }
+                    .padding(.bottom, 60) // Adjust padding to position the button
+                }
             }
         }
+        .refreshable {
+                        fetchBusInfo()
+                    }
         .onAppear {
             fetchUserRole() // Fetch the user role when the view appears
             fetchBusInfo()
         }
     }
+    
+    // Example function for refreshing data
+    func refreshData() {
+        fetchBusInfo()
+        
+    }
+    
 
+    
+    
     private func saveBusInfoToFirebase() {
         let db = Firestore.firestore()
         let busInfo = textFieldValues.flatMap { $0 } // Flatten the array
-        let timestamp = Timestamp(date: Date()) // Current timestamp
+        let currentDate = Date()
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd" // Format as "YYYY-MM-DD"
+        let formattedDate = dateFormatter.string(from: currentDate)
         let email = userEmail // User's email
+        
+        // Document path: "bus_info/{formattedDate}/{schoolName}/{email}"
+        let documentPath = "bus_info/\(formattedDate)/\(schoolName)/\(schoolName)"
         
         // Document data
         let documentData: [String: Any] = [
             "busNumbers": busInfo,
-            "timestamp": timestamp,
+            "timestamp": Timestamp(date: currentDate),
             "email": email,
             "school": schoolName
         ]
         
-        db.collection("bus_info").document(schoolName).setData(documentData) { error in
+        db.document(documentPath).setData(documentData) { error in
             if let error = error {
                 print("Error saving bus info: \(error.localizedDescription)")
             } else {
@@ -639,9 +675,18 @@ struct BusTableView: View {
         }
     }
 
+
     private func fetchBusInfo() {
         let db = Firestore.firestore()
-        let docRef = db.collection("bus_info").document(schoolName)
+        
+        // Get the current date and format it
+        let currentDate = Date()
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd" // Format as "YYYY-MM-DD"
+        let formattedDate = dateFormatter.string(from: currentDate)
+        
+        // Document path: "bus_info/{formattedDate}/{schoolName}"
+        let docRef = db.collection("bus_info").document("\(formattedDate)").collection(schoolName).document(schoolName)
 
         docRef.getDocument { document, error in
             if let document = document, document.exists {
@@ -668,6 +713,7 @@ struct BusTableView: View {
             }
         }
     }
+
 
     private func fetchUserRole() {
         guard let userID = Auth.auth().currentUser?.uid else {
@@ -720,10 +766,12 @@ struct MoreBusInfoView: View {
                 .edgesIgnoringSafeArea(.all) // Extend the background color to the edges
 
             VStack {
-                Text("\(schoolName) Bus Loop")
+                Text("\(schoolName) Bus Messages")
                     .font(.system(size: 20))
                     .bold()
                     .padding()
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .multilineTextAlignment(.center)
                 
                 Spacer()
                 
@@ -814,7 +862,7 @@ struct MoreBusInfoView: View {
         
         let db = Firestore.firestore()
         let now = Timestamp()
-        db.collection("busInfo").document(schoolName).collection("messages").addDocument(data: [
+        db.collection("bus_messages").document(schoolName).collection("messages").addDocument(data: [
             "info": busInfo,
             "updatedBy": userEmail ?? "Unknown",
             "school": schoolName,
@@ -838,7 +886,7 @@ struct MoreBusInfoView: View {
         let startOfDay = calendar.startOfDay(for: now.dateValue())
         let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
         
-        db.collection("busInfo").document(schoolName).collection("messages")
+        db.collection("bus_messages").document(schoolName).collection("messages")
             .whereField("timestamp", isGreaterThanOrEqualTo: Timestamp(date: startOfDay))
             .whereField("timestamp", isLessThan: Timestamp(date: endOfDay))
             .order(by: "timestamp", descending: true)
@@ -853,6 +901,7 @@ struct MoreBusInfoView: View {
             }
     }
 }
+
 
 // Data model for messages
 struct BusMessage: Identifiable, Codable {
