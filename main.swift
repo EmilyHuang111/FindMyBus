@@ -310,70 +310,84 @@ struct SettingsView: View {
     @State private var school: String = ""
     @State private var errorMessage: String?
     @State private var successMessage: String?
+    @State private var logoImageName: String = "" // New state for the logo image name
 
     var body: some View {
         ZStack {
             // Full background color
-            Color(red: 0.9, green: 0.95, blue: 1.0) // Replace with your desired tan color if needed
+            Color(red: 0.9, green: 0.95, blue: 1.0) // Replace with your desired color if needed
             
             VStack(alignment: .leading, spacing: 20) {
-                        Text("Account Info")
-                            .font(.largeTitle)
-                            .padding(.bottom, 20)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                        
-                        VStack(alignment: .leading, spacing: 15) {
-                            HStack(spacing: -15) { // Adjust the spacing here
-                                Text("Name:")
-                                    .font(.headline)
-                                    .frame(width: 70, alignment: .leading) // Adjust width for alignment
-                                TextField("Name", text: $name)
-                                    .padding()
-                                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                            }
-                            
-                            HStack(spacing: -15) { // Adjust the spacing here
-                                Text("Email:")
-                                    .font(.headline)
-                                    .frame(width: 70, alignment: .leading) // Adjust width for alignment
-                                TextField("Email", text: $email)
-                                    .padding()
-                                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                                    .disabled(true) // Disable editing for email
-                            }
-                            
-                            HStack(spacing: -15) { // Adjust the spacing here
-                                Text("Role:")
-                                    .font(.headline)
-                                    .frame(width: 70, alignment: .leading) // Adjust width for alignment
-                                TextField("Role", text: $role)
-                                    .padding()
-                                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                                    .disabled(true) // Disable editing for role
-                            }
-                            
-                            HStack(spacing: -15) { // Adjust the spacing here
-                                Text("School:")
-                                    .font(.headline)
-                                    .frame(width: 70, alignment: .leading) // Adjust width for alignment
-                                TextField("School", text: $school)
-                                    .padding()
-                                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                                    .disabled(true) // Disable editing for school
-                            }
-                        }
-                        
-                        if let errorMessage = errorMessage {
-                            Text(errorMessage)
-                                .foregroundColor(.red)
-                                .padding(.top, 10)
-                        }
-                        
-                        if let successMessage = successMessage {
-                            Text(successMessage)
-                                .foregroundColor(.green)
-                                .padding(.top, 10)
-                        }
+                Text("Account Info")
+                    .font(.largeTitle)
+                    .padding(.bottom, -10)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                
+                // Display the logo image if logoImageName is set
+                if !logoImageName.isEmpty {
+                    HStack {
+                        Spacer() // Push the logo to the center
+                        Image(logoImageName)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 100) // Adjust the height as needed
+                        Spacer() // Push the logo to the center
+                    }
+                    .padding(.bottom, -10)
+                }
+                
+                VStack(alignment: .leading, spacing: 15) {
+                    HStack(spacing: -15) { // Adjust the spacing here
+                        Text("Name:")
+                            .font(.headline)
+                            .frame(width: 70, alignment: .leading) // Adjust width for alignment
+                        TextField("Name", text: $name)
+                            .padding()
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                    }
+                    
+                    HStack(spacing: -15) { // Adjust the spacing here
+                        Text("Email:")
+                            .font(.headline)
+                            .frame(width: 70, alignment: .leading) // Adjust width for alignment
+                        TextField("Email", text: $email)
+                            .padding()
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .disabled(true) // Disable editing for email
+                    }
+                    
+                    HStack(spacing: -15) { // Adjust the spacing here
+                        Text("Role:")
+                            .font(.headline)
+                            .frame(width: 70, alignment: .leading) // Adjust width for alignment
+                        TextField("Role", text: $role)
+                            .padding()
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .disabled(true) // Disable editing for role
+                    }
+                    
+                    HStack(spacing: -15) { // Adjust the spacing here
+                        Text("School:")
+                            .font(.headline)
+                            .frame(width: 70, alignment: .leading) // Adjust width for alignment
+                        TextField("School", text: $school)
+                            .padding()
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .disabled(true) // Disable editing for school
+                    }
+                }
+                
+                if let errorMessage = errorMessage {
+                    Text(errorMessage)
+                        .foregroundColor(.red)
+                        .padding(.top, 10)
+                }
+                
+                if let successMessage = successMessage {
+                    Text(successMessage)
+                        .foregroundColor(.green)
+                        .padding(.top, 10)
+                }
                 
                 Button(action: updateAccountSettings) {
                     Text("Update Settings")
@@ -406,6 +420,25 @@ struct SettingsView: View {
                     email = data["email"] as? String ?? ""
                     role = data["role"] as? String ?? "N/A"
                     school = data["school"] as? String ?? "N/A"
+                    
+                    // Update the logo based on the school value
+                    switch school {
+                    case "Westglades Middle School":
+                        logoImageName = "westglades_logo" // Ensure this matches your asset name
+                    case "Coral Springs High School":
+                        logoImageName = "coral_springs_logo" // Ensure this matches your asset name
+                    case "Coral Glades High School":
+                        logoImageName = "coral_glades_logo" // Ensure this matches your asset name
+                    case "Falcon Cove Middle School":
+                        logoImageName = "falcon_cove_logo" // Ensure this matches your asset name
+                    case "Cyprus Bay High School":
+                        logoImageName = "cyprus_bay_logo"
+                    case "American Heritage Plantation":
+                        logoImageName = "american_heritage_logo"
+                        
+                    default:
+                        logoImageName = "" // No logo if school does not match
+                    }
                 }
             }
         }
@@ -428,6 +461,8 @@ struct SettingsView: View {
         }
     }
 }
+
+
 
 
 
@@ -1152,7 +1187,7 @@ struct SignUpView: View {
                 .padding(.top, 20)
                 
                 if isSignUpSuccessful {
-                    Text("Please check your email for verification link to finish sign up!")
+                    Text("Check your email for verification link to finish sign up!")
                         .foregroundColor(.green)
                         .padding(.top, 10)
                 }
