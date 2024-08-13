@@ -626,9 +626,14 @@ struct BusTableView: View {
                         // Handle logout action
                         logout()
                     }) {
-                        Text("Logout")
-                            .font(.body)
-                            .cornerRadius(8)
+                        HStack {
+                            Image(systemName: "door.left.hand.open") // Logout icon
+                                .font(.body)
+                                .foregroundColor(.red) // Optional: Change the color of the icon
+                            Text("Logout") // Text label
+                                .font(.body)
+                                .foregroundColor(.red) // Optional: Match text color with icon
+                        }
                     },
                     trailing:
                     Button(action: {
@@ -643,7 +648,8 @@ struct BusTableView: View {
                         }
                     )
                 )
-                
+
+
                 // Refresh Button at the bottom left
                 VStack {
                     Spacer()
