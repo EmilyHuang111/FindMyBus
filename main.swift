@@ -1,7 +1,6 @@
 import SwiftUI
-import Firebase
-import FirebaseFirestore
 import FirebaseAuth
+import FirebaseFirestore
 
 struct ContentView: View {
     @State private var selectedSchool = "Choose a school"
@@ -15,121 +14,124 @@ struct ContentView: View {
 
     var body: some View {
         NavigationView {
-            ZStack {
-                // Background Gradient
-                LinearGradient(gradient: Gradient(colors: [Color.blue.opacity(0.3), Color.white]), startPoint: .top, endPoint: .bottom)
-                    .edgesIgnoringSafeArea(.all)
-                
-                VStack(spacing: 20) {
-                    // App Title
-                    Text("FindMyBus")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                        .foregroundColor(.black)
-                        .padding(.top, 50)
+            GeometryReader { geometry in
+                ZStack {
+                    // Background Gradient
+                    LinearGradient(gradient: Gradient(colors: [Color.blue.opacity(0.3), Color.white]), startPoint: .top, endPoint: .bottom)
+                        .edgesIgnoringSafeArea(.all)
                     
-                    // Illustration (Placeholder)
-                    Image(systemName: "bus")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 150, height: 150)
-                        .foregroundColor(.yellow)
-                        .padding(.bottom, 50)
-                    
-                    // Email and Password Login Section
-                    VStack(spacing: 10) {
-                        HStack {
-                            Text("Email Address")
-                                .font(.headline)
-                                .fontWeight(.bold)
-                                .foregroundColor(.black)
-                            Spacer()
-                        }
-                        .padding(.horizontal, 40)
+                    VStack(spacing: 20) {
+                        // App Title
+                        Text("FindMyBus")
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                            .foregroundColor(.black)
+                            .padding(.top, geometry.size.height * 0.03) // Reduced from 0.05 to 0.03
                         
-                        TextField("Enter your email", text: $email)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .padding(.horizontal, 40)
-                            .autocapitalization(.none)
+                        // Illustration (Placeholder)
+                        Image(systemName: "bus")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: min(geometry.size.width * 0.3, 150), height: min(geometry.size.width * 0.3, 150))
+                            .foregroundColor(.yellow)
+                            .padding(.bottom, geometry.size.height * 0.03) // Reduced from 0.05 to 0.03
                         
-                        HStack {
-                            Text("Password")
-                                .font(.headline)
-                                .fontWeight(.bold)
-                                .foregroundColor(.black)
-                            Spacer()
-                        }
-                        .padding(.horizontal, 40)
-                        
-                        SecureField("Enter your password", text: $password)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .padding(.horizontal, 40)
-                            .autocapitalization(.none)
-                        
-                        if let errorMessage = errorMessage {
-                            Text(errorMessage)
-                                .foregroundColor(.red)
-                                .font(.subheadline)
-                                .padding(.horizontal, 40)
-                        }
-                        
-                        Button(action: {
-                            login()
-                        }) {
-                            Text("Login")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                                .padding()
-                                .frame(maxWidth: .infinity)
-                                .background(Color.blue)
-                                .cornerRadius(10)
-                                .shadow(radius: 5)
-                        }
-                        .padding(.horizontal, 40)
-                        
-                        if showForgotPassword {
-                            Button(action: {
-                                forgotPassword()
-                            }) {
-                                Text("Forgot Password?")
+                        // Email and Password Login Section
+                        VStack(spacing: 15) {
+                            HStack {
+                                Text("Email Address")
+                                    .font(.headline)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.black)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 20)
+                            
+                            TextField("Enter your email", text: $email)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                                .padding(.horizontal, 20)
+                                .autocapitalization(.none)
+                            
+                            HStack {
+                                Text("Password")
+                                    .font(.headline)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.black)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 20)
+                            
+                            SecureField("Enter your password", text: $password)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                                .padding(.horizontal, 20)
+                                .autocapitalization(.none)
+                            
+                            if let errorMessage = errorMessage {
+                                Text(errorMessage)
+                                    .foregroundColor(.red)
                                     .font(.subheadline)
-                                    .foregroundColor(.blue)
+                                    .padding(.horizontal, 20)
+                            }
+                            
+                            Button(action: {
+                                login()
+                            }) {
+                                Text("Login")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
                                     .padding()
+                                    .frame(maxWidth: .infinity)
+                                    .background(Color.blue)
+                                    .cornerRadius(10)
+                                    .shadow(radius: 5)
+                            }
+                            .padding(.horizontal, 20)
+                            
+                            if showForgotPassword {
+                                Button(action: {
+                                    forgotPassword()
+                                }) {
+                                    Text("Forgot Password?")
+                                        .font(.subheadline)
+                                        .foregroundColor(.blue)
+                                        .padding()
+                                }
                             }
                         }
-                    }
-                    .padding(.bottom, 20)
                     
-                    // Sign Up Link
-                    NavigationLink(destination: SignUpView()) {
-                        Text("Don't have an account? Sign Up")
-                            .font(.subheadline)
-                            .foregroundColor(.blue)
-                            .padding(.bottom, 30)
-                            
-                    }
-                    
-                    Spacer()
-                    
-                    // Navigation Link to Bus Table View
-                    NavigationLink(destination: BusTableView(schoolName: selectedSchool)
-                                    .navigationBarBackButtonHidden(true)
-                                    .navigationBarHidden(true),
-                                   isActive: $navigateToBusTableView) {
-                        EmptyView()
-                    }
 
-                    
-                }
-                .alert(isPresented: $showConfirmationAlert) {
-                    Alert(
-                        title: Text("Send Password Reset Email"),
-                        message: Text("Are you sure you want to send a password reset email to \(email)?"),
-                        primaryButton: .destructive(Text("Send")) {
-                            sendPasswordResetEmail()
-                        },
-                        secondaryButton: .cancel()
-                    )
+                        .padding(.bottom, 20)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                        
+                        // Sign Up Link
+                        NavigationLink(destination: SignUpView()) {
+                            Text("Don't have an account? Sign Up")
+                                .font(.subheadline)
+                                .foregroundColor(.blue)
+                                .padding(.bottom, 30)
+                        }
+                        
+                        Spacer()
+                        
+                        // Navigation Link to Bus Table View
+                        NavigationLink(destination: BusTableView(schoolName: selectedSchool)
+                                        .navigationBarBackButtonHidden(true)
+                                        .navigationBarHidden(true),
+                                       isActive: $navigateToBusTableView) {
+                            EmptyView()
+                        }
+                        
+                    }
+                    .alert(isPresented: $showConfirmationAlert) {
+                        Alert(
+                            title: Text("Send Password Reset Email"),
+                            message: Text("Are you sure you want to send a password reset email to \(email)?"),
+                            primaryButton: .destructive(Text("Send")) {
+                                sendPasswordResetEmail()
+                            },
+                            secondaryButton: .cancel()
+                        )
+                    }
                 }
             }
         }
@@ -143,7 +145,7 @@ struct ContentView: View {
                     errorMessage = "Incorrect password. Please try again."
                     showForgotPassword = true // Show the Forgot Password button
                 } else {
-                    errorMessage = "Incorrect pasword or email address."
+                    errorMessage = "Incorrect password or email address."
                     showForgotPassword = true
                 }
                 return
@@ -182,7 +184,6 @@ struct ContentView: View {
             }
         }
     }
-
     
     private func forgotPassword() {
         guard !email.isEmpty else {
@@ -315,7 +316,9 @@ struct SettingsView: View {
     var body: some View {
         ZStack {
             // Full background color
-            Color(red: 0.9, green: 0.95, blue: 1.0) // Replace with your desired color if needed
+            Color(red: 0.9, green: 0.95, blue: 1.0)
+                .edgesIgnoringSafeArea(.all)
+                
             
             VStack(alignment: .leading, spacing: 20) {
                 Text("Account Info")
@@ -384,9 +387,13 @@ struct SettingsView: View {
                 }
                 
                 if let successMessage = successMessage {
-                    Text(successMessage)
-                        .foregroundColor(.green)
-                        .padding(.top, 10)
+                    HStack {
+                        Spacer()
+                        Text(successMessage)
+                            .foregroundColor(.green)
+                            .padding(.top, -10)
+                        Spacer()
+                    }
                 }
                 
                 Button(action: updateAccountSettings) {
@@ -396,7 +403,7 @@ struct SettingsView: View {
                         .foregroundColor(.white)
                         .cornerRadius(8)
                 }
-                .padding(.top, 20)
+                .padding(.top, -15)
                 .frame(maxWidth: .infinity) // Make the button take up the full width of its container
                 .frame(alignment: .center)
             }
@@ -518,7 +525,7 @@ struct BusTableView: View {
                     Image("Untitled design")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 350, height: 200) // Adjust the size as needed
+                        .frame(width: 300, height: 120) // Adjust the size as needed
                         .padding(.bottom, -15) // Optional: Adds some space between the image and the grid
 
                     VStack(spacing: 0) {
@@ -526,36 +533,41 @@ struct BusTableView: View {
                             HStack(spacing: 0) {
                                 // First Column (Label)
                                 Text("\(rowIndex + 1).") // Numbers from 1 to 12
-                                    .font(.system(size: 13))
-                                    .frame(width: 30, height: 22, alignment: .leading) // Increased width
-                                    .padding(3)
+                                    .font(.system(size: 11))
+                                    .frame(width: 20, height: 18, alignment: .leading) // Increased width
+                                    .padding(2)
                                     .border(Color.gray, width: 0.5)
                                 
                                 // Second Column (TextField)
                                 TextField("Bus #", text: $textFieldValues[rowIndex][0])
+                                    .textFieldStyle(PlainTextFieldStyle())
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
-                                    .frame(width: 100, height: 22) // Increased width
-                                    .padding(3)
+                                    .font(.system(size: 12)) // Decreased font size
+                                    .frame(width: 145, height: 18) // Increased width
+                                    .padding(2)
                                     .border(Color.gray, width: 0.5)
                                     .disabled(userRole != "Admin") // Disable if not admin
                                 
                                 // Third Column (Label)
                                 Text("\(rowIndex + 12 + 1).") // Numbers from 13 to 24
-                                    .font(.system(size: 13))
-                                    .frame(width: 30, height: 22, alignment: .leading) // Increased width
-                                    .padding(3)
+                                    .font(.system(size: 12))
+                                    .frame(width: 20, height: 18, alignment: .leading) // Increased width
+                                    .padding(2)
                                     .border(Color.gray, width: 0.5)
                                 
                                 // Fourth Column (TextField)
                                 TextField("Bus #", text: $textFieldValues[rowIndex][1])
+                                    .textFieldStyle(PlainTextFieldStyle())
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
-                                    .frame(width: 100, height: 22) // Increased width
-                                    .padding(3)
+                                    .font(.system(size: 11)) // Decreased font size
+                                    .frame(width: 145, height: 18) // Increased width
+                                    .padding(2)
                                     .border(Color.gray, width: 0.5)
                                     .disabled(userRole != "Admin") // Disable if not admin
                             }
                         }
                     }
+
                     .border(Color.black, width: 1) // Added border around the entire grid
                     .padding(5) // Optional: Adds some padding around the grid
                     .padding(.top, 20)
@@ -587,7 +599,7 @@ struct BusTableView: View {
                                 .foregroundColor(.white)
                                 .cornerRadius(10)
                         }
-                        .padding(.top, 10) // Adjust padding to move the Save button down
+                        .padding(.top, 2) // Adjust padding to move the Save button down
                     }
                     
                     // More Bus Info Button
@@ -651,7 +663,7 @@ struct BusTableView: View {
                         .padding(.leading, 40) // Adjust padding to position the button
                         Spacer()
                     }
-                    .padding(.bottom, 60) // Adjust padding to position the button
+                    .padding(.bottom, 90) // Adjust padding to position the button
                 }
             }
         }
@@ -1122,36 +1134,43 @@ struct SignUpView: View {
                 Text("Sign Up")
                     .font(.largeTitle)
                     .fontWeight(.bold)
-                    .padding(.top, 20)
-                    .padding(.bottom, 20)
+                    .padding(.top, -20) // Reduced padding to shift up
+                    .padding(.bottom, 10)
                 
                 TextField("Name", text: $name)
                     .padding()
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .autocapitalization(.none)
+                    .padding(.bottom, 5)
+                    
                 
                 TextField("Email", text: $email)
                     .padding()
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .keyboardType(.emailAddress)
                     .autocapitalization(.none)
+                    .padding(.bottom, 5)
+                    
                 
                 SecureField("Password", text: $password)
                     .padding()
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .autocapitalization(.none)
+                    .padding(.bottom, 5)
                 
                 SecureField("Confirm Password", text: $confirmPassword)
                     .padding()
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .autocapitalization(.none)
+                    .padding(.bottom, 5)
                 
                 Picker("Role", selection: $role) {
                     ForEach(roles, id: \.self) { role in
                         Text(role).tag(role)
                     }
                 }
-                .pickerStyle(SegmentedPickerStyle()) // or .menu for a dropdown style
+                .pickerStyle(SegmentedPickerStyle()) 
+                
                 .onChange(of: role) { newValue in
                     isAdminPasswordRequired = newValue == "Admin"
                 }
@@ -1162,7 +1181,7 @@ struct SignUpView: View {
                         Text(school).tag(school)
                     }
                 }
-                .padding()
+                .padding(.bottom, 5)
                 .pickerStyle(MenuPickerStyle()) // or .wheel for a wheel style
 
                 if isAdminPasswordRequired {
